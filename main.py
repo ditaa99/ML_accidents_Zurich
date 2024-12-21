@@ -10,6 +10,11 @@ Expanding a previous data analysis project to include machine learning technique
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import geopandas as gpd
+from shapely.geometry import Point #python 3.12.4 required
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib.colors import Normalize
+import matplotlib.cm as cm
 
 
 # Specify the file path or URL
@@ -17,6 +22,9 @@ file_path = 'RoadTrafficAccidentLocations.csv'
 
 # Read the CSV data
 accidentDf = pd.read_csv(file_path)
+
+# Load the Zurich map for location visualization of the accidents
+zurich_map = gpd.read_file("zurich.geojson")
 
 # Print the DataFrame
 # print(accidentDf)
@@ -298,3 +306,90 @@ plt.ylabel('Severity Category')
 plt.xticks(rotation=45, ha='right')
 plt.show()
 
+
+
+# Scatter plot to see raw accident locations
+plt.figure(figsize=(10, 8))
+plt.scatter(
+    accidentDf["AccidentLocation_CHLV95_E"],
+    accidentDf["AccidentLocation_CHLV95_N"],
+    alpha=0.5,
+    s=1,
+    c='blue'
+)
+plt.title("Accident Locations in Zurich (Scatter Plot)")
+plt.xlabel("East Coordinate (CHLV95_E)")
+plt.ylabel("North Coordinate (CHLV95_N)")
+plt.grid(alpha=0.3)
+plt.show()
+
+
+# Hexbin plot for accident density
+plt.figure(figsize=(10, 8))
+hb = plt.hexbin(
+    accidentDf["AccidentLocation_CHLV95_E"],
+    accidentDf["AccidentLocation_CHLV95_N"],
+    gridsize=100,  # Adjust grid size for more/less detail
+    cmap="YlOrRd",
+    mincnt=1  # Minimum count per bin to display
+)
+plt.title("Accident Density in Zurich (Hexbin Plot)")
+plt.xlabel("East Coordinate (CHLV95_E)")
+plt.ylabel("North Coordinate (CHLV95_N)")
+cb = plt.colorbar(hb)
+cb.set_label("Number of Accidents")
+plt.show()
+
+# KDE (Kernel Density Estimate) plot for accident density
+plt.figure(figsize=(10, 8))
+sns.kdeplot(
+    x=accidentDf["AccidentLocation_CHLV95_E"],
+    y=accidentDf["AccidentLocation_CHLV95_N"],
+    cmap="YlOrRd",
+    fill=True,
+    bw_adjust=0.5,  # Bandwidth adjustment for smoothing
+    levels=50  # Number of density levels
+)
+plt.title("Accident Density in Zurich (KDE Plot)")
+plt.xlabel("East Coordinate (CHLV95_E)")
+plt.ylabel("North Coordinate (CHLV95_N)")
+cb = plt.colorbar(hb)
+cb.set_label("Number of Accidents")
+plt.grid(alpha=0.3)
+plt.show()
+
+
+
+
+#trying to plot the zurich map
+'''fig, ax = plt.subplots(figsize=(12, 10))
+
+# Plot the Zurich map
+zurich_map.plot(ax=ax, color='lightgrey', edgecolor='black')
+
+# Generate KDE plot without fill first
+kde = sns.kdeplot(
+    x=accidentDf['AccidentLocation_CHLV95_E'], 
+    y=accidentDf['AccidentLocation_CHLV95_N'], 
+    cmap='viridis', ax=ax, fill=True, levels=50, alpha=0.7
+)
+
+# Extract KDE levels for normalization
+x, y = accidentDf['AccidentLocation_CHLV95_E'], accidentDf['AccidentLocation_CHLV95_N']
+values = kde.get_lines()[0].get_array()
+
+# Normalize the color scale
+norm = Normalize(vmin=values.min(), vmax=values.max())
+
+# Add colorbar
+sm = cm.ScalarMappable(cmap='viridis', norm=norm)
+cbar = fig.colorbar(sm, ax=ax, orientation='vertical', shrink=0.7)
+cbar.set_label('Accident Density')
+
+# Set the title and axis labels
+ax.set_title('Accident Density in Zurich')
+ax.set_xlabel('CHLV95_E Coordinate')
+ax.set_ylabel('CHLV95_N Coordinate')
+
+plt.show()
+'''
