@@ -26,6 +26,7 @@ accidentDf = pd.read_csv(file_path)
 
 # Load the Zurich map for location visualization of the accidents
 zurich_map = gpd.read_file("zurich.geojson")
+zurich_map = zurich_map.to_crs("EPSG:2056") # map coordinates on swiss coordinates
 
 # Print the DataFrame
 # print(accidentDf)
@@ -196,16 +197,18 @@ plt.show()
 accidents_2018 = accidentDf[accidentDf['AccidentYear'].dt.year == 2018]
 
 # Group the data by 'AccidentMonth_en' and 'AccidentType_en' and count the number of accidents in each month for each type
-accidents_per_month_type_2018 = accidents_2018.groupby(['AccidentMonth_en', 'AccidentType'],
+accidents_per_month_type_2018 = accidents_2018.groupby(['AccidentMonth_en', 'AccidentType_en'],
                                                        observed=True).size().unstack().reindex(
     ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November',
      'December'])
 
 # Create a new figure and set the figure size
-fig, ax = plt.subplots(figsize=(12, 8))
+fig, ax = plt.subplots(figsize=(16, 8))
 
 # Define a color map for different types of accidents
 colors = [plt.colormaps['tab10'](i / len(accidents_per_month_type_2018.columns)) for i in range(len(accidents_per_month_type_2018.columns))]
+colors[1] = '#FF1493'#two categories had the same color so i changed one of them
+
 # Plot the frequency of accidents for each month with different colors for each type
 accidents_per_month_type_2018.plot(
     kind='bar', stacked=True, ax=ax,
@@ -237,9 +240,8 @@ accident_types_over_time = accidentDf.pivot_table(
     observed=False
 )
 
-
 fig, ax = plt.subplots(figsize=(12, 8))
-accident_types_over_time.plot(kind='line', ax=ax, linewidth=2.5) # Plot the trend of accident types over the years with thicker lines
+accident_types_over_time.plot(kind='line', ax=ax, linewidth=2.5) # line plot, thicker lines
 
 ax.set_title('Accident Types Over Time')
 ax.set_xlabel('Year')
@@ -333,7 +335,7 @@ plt.show()
 
 
 
-# Scatter plot to see raw accident locations
+'''# Scatter plot to see raw accident locations
 plt.figure(figsize=(10, 8))
 plt.scatter(
     accidentDf["AccidentLocation_CHLV95_E"],
@@ -346,10 +348,37 @@ plt.title("Accident Locations in Zurich (Scatter Plot)")
 plt.xlabel("East Coordinate (CHLV95_E)")
 plt.ylabel("North Coordinate (CHLV95_N)")
 plt.grid(alpha=0.3)
+plt.show()'''
+
+#Scatter plot with map overlay
+fig, ax = plt.subplots(figsize=(12, 10))
+
+# base map first 
+zurich_map.plot(ax=ax, color='lightgrey', edgecolor='grey', alpha=0.7)
+
+# scatter plot on top
+plt.scatter(
+    accidentDf["AccidentLocation_CHLV95_E"],
+    accidentDf["AccidentLocation_CHLV95_N"],
+    alpha=0.5,
+    s=1,
+    c='blue',
+    label='Accidents'
+)
+# limits to map bounds
+minx, miny, maxx, maxy = zurich_map.total_bounds
+ax.set_xlim(minx, maxx)
+ax.set_ylim(miny, maxy)
+
+plt.title("Accident Locations in Zurich (Scatter Plot)")
+plt.xlabel("East Coordinate (CHLV95_E)")
+plt.ylabel("North Coordinate (CHLV95_N)")
+ax.grid(alpha=0.3)
+plt.legend()
+
 plt.show()
 
-
-# Hexbin plot for accident density
+'''# Hexbin plot for accident density
 plt.figure(figsize=(10, 8))
 hb = plt.hexbin(
     accidentDf["AccidentLocation_CHLV95_E"],
@@ -363,7 +392,39 @@ plt.xlabel("East Coordinate (CHLV95_E)")
 plt.ylabel("North Coordinate (CHLV95_N)")
 cb = plt.colorbar(hb)
 cb.set_label("Number of Accidents")
+plt.show()'''
+
+# Hexbin plot with map overlay
+fig, ax = plt.subplots(figsize=(12, 10))
+
+# base map first
+zurich_map.plot(ax=ax, color='lightgrey', edgecolor='grey', alpha=0.5)
+
+# hexbin plot on top
+hb = plt.hexbin(
+    accidentDf["AccidentLocation_CHLV95_E"],
+    accidentDf["AccidentLocation_CHLV95_N"],
+    gridsize=100,
+    cmap="YlOrRd",
+    mincnt=1,
+    alpha=0.8 
+)
+
+# limits to map bounds
+minx, miny, maxx, maxy = zurich_map.total_bounds
+ax.set_xlim(minx, maxx)
+ax.set_ylim(miny, maxy)
+
+plt.title("Accident Density in Zurich (Hexbin Plot)")
+plt.xlabel("East Coordinate (CHLV95_E)")
+plt.ylabel("North Coordinate (CHLV95_N)")
+
+cb = plt.colorbar(hb)
+cb.set_label("Number of Accidents")
+
 plt.show()
+
+
 
 #takes too long to run
 '''# KDE (Kernel Density Estimate) plot for accident density
@@ -383,38 +444,3 @@ cb = plt.colorbar(hb)
 cb.set_label("Number of Accidents")
 plt.grid(alpha=0.3)
 plt.show()'''
-
-
-
-#empty map
-'''# Create figure and axis
-fig, ax = plt.subplots(figsize=(12, 10))
-
-# Plot base map
-zurich_map.plot(ax=ax, color='lightgrey', edgecolor='black', alpha=0.5)
-
-# Add scatter plot
-ax.scatter(
-    accidentDf["AccidentLocation_CHLV95_E"],
-    accidentDf["AccidentLocation_CHLV95_N"],
-    alpha=0.5,
-    s=1,
-    c='blue',
-    label='Accidents'
-)
-
-# Set limits to map bounds
-minx, miny, maxx, maxy = zurich_map.total_bounds
-ax.set_xlim(minx, maxx)
-ax.set_ylim(miny, maxy)
-
-# Add labels
-ax.set_title("Accident Locations in Zurich")
-ax.set_xlabel("East Coordinate (CHLV95_E)")
-ax.set_ylabel("North Coordinate (CHLV95_N)")
-ax.grid(alpha=0.3)
-ax.legend()
-
-# Show the combined plot
-plt.show()'''
-
