@@ -15,6 +15,7 @@ from shapely.geometry import Point #python 3.12.4 required
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib.colors import Normalize
 import matplotlib.cm as cm
+import pandasql as ps
 
 
 # Specify the file path or URL
@@ -49,8 +50,35 @@ accidentDf['RoadType_en'] = accidentDf['RoadType_en'].astype('category')
 # print(accidentDf.info())
 
 
-'''checking for null values'''
+# basic info about the dataset
+print("Dataset Summary:")
+print(accidentDf.info())
+# print("\nFirst 5 Rows of the Dataset:")
+# print(accidentDf.head())
+
+# duplicates and remove them; i commented them after running them once
+# print("\nNumber of Duplicates:", accidentDf.duplicated().sum())
+# accidentDf.drop_duplicates(inplace=True)
+
+# Check for null values and handle them; i commented them after running them once
+# print("\nNull Values in the Dataset:")
 # print(accidentDf.isnull().sum())
+
+# Display summary statistics
+print("\nSummary Statistics for Numeric Columns:")
+print(accidentDf.describe())
+
+# SQL-like operation: Select specific columns and filter data
+query = """
+SELECT AccidentYear, COUNT(*) as TotalAccidents
+FROM accidentDf
+WHERE AccidentYear >= 2013 AND AccidentYear <= 2017
+GROUP BY AccidentYear
+ORDER BY TotalAccidents DESC
+"""
+result = ps.sqldf(query, locals())
+print("\nSQL Query Result:")
+print(result)
 
 
 '''Bar Plot for Accident Types with Labels'''
@@ -96,7 +124,7 @@ accident_day_freq = accidentDf['AccidentWeekDay_en'].value_counts()
 accident_day_freq = accident_day_freq.reindex(days_order)# Reindex the series to order the days of the week from Monday to Sunday
 
 # Print the frequency of accidents for each day of the week
-print("Frequency of Accidents for Each Day of the Week:")
+print("\nFrequency of Accidents for Each Day of the Week:")
 print(accident_day_freq)
 
 
@@ -285,9 +313,6 @@ plt.show()
 
 '''expanding the proj'''
 
-# Summary statistics for numeric columns
-print("\nSummary Statistics for Numeric Columns:")
-print(accidentDf.describe())
 
 # Analyze continuous variables: Distribution of accidents by hour
 plt.figure(figsize=(10, 6))
@@ -340,7 +365,8 @@ cb = plt.colorbar(hb)
 cb.set_label("Number of Accidents")
 plt.show()
 
-# KDE (Kernel Density Estimate) plot for accident density
+#takes too long to run
+'''# KDE (Kernel Density Estimate) plot for accident density
 plt.figure(figsize=(10, 8))
 sns.kdeplot(
     x=accidentDf["AccidentLocation_CHLV95_E"],
@@ -356,40 +382,39 @@ plt.ylabel("North Coordinate (CHLV95_N)")
 cb = plt.colorbar(hb)
 cb.set_label("Number of Accidents")
 plt.grid(alpha=0.3)
-plt.show()
+plt.show()'''
 
 
 
+#empty map
+'''# Create figure and axis
+fig, ax = plt.subplots(figsize=(12, 10))
 
-#trying to plot the zurich map
-'''fig, ax = plt.subplots(figsize=(12, 10))
+# Plot base map
+zurich_map.plot(ax=ax, color='lightgrey', edgecolor='black', alpha=0.5)
 
-# Plot the Zurich map
-zurich_map.plot(ax=ax, color='lightgrey', edgecolor='black')
-
-# Generate KDE plot without fill first
-kde = sns.kdeplot(
-    x=accidentDf['AccidentLocation_CHLV95_E'], 
-    y=accidentDf['AccidentLocation_CHLV95_N'], 
-    cmap='viridis', ax=ax, fill=True, levels=50, alpha=0.7
+# Add scatter plot
+ax.scatter(
+    accidentDf["AccidentLocation_CHLV95_E"],
+    accidentDf["AccidentLocation_CHLV95_N"],
+    alpha=0.5,
+    s=1,
+    c='blue',
+    label='Accidents'
 )
 
-# Extract KDE levels for normalization
-x, y = accidentDf['AccidentLocation_CHLV95_E'], accidentDf['AccidentLocation_CHLV95_N']
-values = kde.get_lines()[0].get_array()
+# Set limits to map bounds
+minx, miny, maxx, maxy = zurich_map.total_bounds
+ax.set_xlim(minx, maxx)
+ax.set_ylim(miny, maxy)
 
-# Normalize the color scale
-norm = Normalize(vmin=values.min(), vmax=values.max())
+# Add labels
+ax.set_title("Accident Locations in Zurich")
+ax.set_xlabel("East Coordinate (CHLV95_E)")
+ax.set_ylabel("North Coordinate (CHLV95_N)")
+ax.grid(alpha=0.3)
+ax.legend()
 
-# Add colorbar
-sm = cm.ScalarMappable(cmap='viridis', norm=norm)
-cbar = fig.colorbar(sm, ax=ax, orientation='vertical', shrink=0.7)
-cbar.set_label('Accident Density')
+# Show the combined plot
+plt.show()'''
 
-# Set the title and axis labels
-ax.set_title('Accident Density in Zurich')
-ax.set_xlabel('CHLV95_E Coordinate')
-ax.set_ylabel('CHLV95_N Coordinate')
-
-plt.show()
-'''
