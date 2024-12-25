@@ -11,11 +11,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import geopandas as gpd
-from shapely.geometry import Point #python 3.12.4 required
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from matplotlib.colors import Normalize
-import matplotlib.cm as cm
+# from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandasql as ps
+import numpy as np
+
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+from sklearn.utils.class_weight import compute_class_weight
+from imblearn.over_sampling import SMOTE
+from imblearn.combine import SMOTETomek
 
 
 # Specify the file path or URL
@@ -223,13 +228,6 @@ ax.legend(title='Accident Type', bbox_to_anchor=(1, 1))
 # plt.savefig("./plots/2018.png")
 plt.show()
 
-# Identify and exclude non-numeric columns
-numeric_columns = accidentDf.select_dtypes(include=['number']).columns
-correlation_matrix = accidentDf[numeric_columns].corr()
-
-# Print the correlation matrix
-print("\nCorrelation Matrix:")
-print(correlation_matrix)
 
 '''Identify patterns in accident types using categorical data analysis'''
 # Create a pivot table to analyze accident types over the years
@@ -315,6 +313,30 @@ plt.show()
 
 '''expanding the proj'''
 
+'''Correlation Matrix'''
+# Identify and exclude non-numeric columns
+numeric_columns = accidentDf.select_dtypes(include=['number']).columns
+correlation_matrix = accidentDf[numeric_columns].corr()
+
+# Print the correlation matrix
+print("\nCorrelation Matrix:")
+print(correlation_matrix)
+
+# Create a heatmap
+plt.figure(figsize=(12, 10))
+sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0)
+plt.title('Correlation Heatmap of Numerical Variables')
+plt.show()
+
+
+# check if time of the day has an effect on the severity of the accident
+plt.figure(figsize=(10, 6))
+sns.scatterplot(data=accidentDf, x='AccidentHour', y='AccidentSeverityCategory_en')
+plt.title('Accident Hour vs. Severity Category')
+plt.xlabel('Hour of the Day')
+plt.ylabel('Severity Category')
+plt.xticks(rotation=45, ha='right')
+plt.show()
 
 # Analyze continuous variables: Distribution of accidents by hour
 plt.figure(figsize=(10, 6))
@@ -326,7 +348,7 @@ plt.show()
 
 # Relationship between two variables: Severity by accident type
 plt.figure(figsize=(12, 8))
-sns.boxplot(data=accidentDf, x='AccidentType_en', y='AccidentSeverityCategory', hue='AccidentType_en', palette='Set2', legend=False)
+sns.boxplot(data=accidentDf, x='AccidentType_en', y='AccidentSeverityCategory_en', hue='AccidentType_en', palette='Set2', legend=False)
 plt.title('Accident Severity by Type')
 plt.xlabel('Accident Type')
 plt.ylabel('Severity Category')
@@ -334,7 +356,7 @@ plt.xticks(rotation=45, ha='right')
 plt.show()
 
 
-
+#Accident locations visualization
 '''# Scatter plot to see raw accident locations
 plt.figure(figsize=(10, 8))
 plt.scatter(
@@ -444,3 +466,75 @@ cb = plt.colorbar(hb)
 cb.set_label("Number of Accidents")
 plt.grid(alpha=0.3)
 plt.show()'''
+
+
+
+'''ML: Accident Severity Prediction using Random Forest Classifier'''
+# Prepare features and target
+X = accidentDf[['AccidentType', 'RoadType', 'AccidentHour', 'AccidentWeekDay']]
+y = accidentDf['AccidentSeverityCategory_en']
+
+# Encode categorical variables
+X = pd.get_dummies(X)
+
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print("\n\nAccident Severity Prediction:")
+# First approach: Using class weights
+print("\nApproach 1: Class Weights")
+class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
+weight_dict = dict(zip(np.unique(y_train), class_weights))
+rf_model_weights = RandomForestClassifier(n_estimators=100, 
+                                        class_weight=weight_dict,
+                                        random_state=42)
+rf_model_weights.fit(X_train, y_train)
+y_pred_weights = rf_model_weights.predict(X_test)
+print(classification_report(y_test, y_pred_weights, zero_division=1))
+
+# Second approach: Using SMOTE
+print("\nApproach 2: SMOTE")
+smote = SMOTE(random_state=42)
+X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+rf_model_smote = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model_smote.fit(X_train_smote, y_train_smote)
+y_pred_smote = rf_model_smote.predict(X_test)
+print(classification_report(y_test, y_pred_smote, zero_division=1))
+
+# Third approach: Using SMOTETomek
+print("\nApproach 3: SMOTETomek")
+smt = SMOTETomek(random_state=42)
+X_train_tomek, y_train_tomek = smt.fit_resample(X_train, y_train)
+rf_model_tomek = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model_tomek.fit(X_train_tomek, y_train_tomek)
+y_pred_tomek = rf_model_tomek.predict(X_test)
+print(classification_report(y_test, y_pred_tomek, zero_division=1))
+
+# Feature importance analysis
+feature_importance = pd.DataFrame({
+    'feature': X.columns,
+    'importance': rf_model_weights.feature_importances_
+})
+feature_importance = feature_importance.sort_values('importance', ascending=False)
+print("\nTop 5 Most Important Features:")
+print(feature_importance.head(5))
+
+# Plot the feature importance for top 5 with percentages
+plt.figure(figsize=(10, 6))
+bars = plt.bar(feature_importance['feature'][:5], feature_importance['importance'][:5])
+
+# Add percentage labels on top of each bar
+total = feature_importance['importance'][:5].sum()
+for bar in bars:
+    height = bar.get_height()
+    percentage = (height/total) * 100
+    plt.text(bar.get_x() + bar.get_width()/2, height,
+             f'{percentage:.1f}%',
+             ha='center', va='bottom')
+
+plt.title('Top 5 Feature Importance')
+plt.xlabel('Feature')
+plt.ylabel('Importance')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()
+
