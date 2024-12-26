@@ -11,25 +11,18 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import geopandas as gpd
-# from mpl_toolkits.axes_grid1 import make_axes_locatable
 import pandasql as ps
 import numpy as np
 
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
-from sklearn.utils.class_weight import compute_class_weight
-from imblearn.over_sampling import SMOTE
-from imblearn.combine import SMOTETomek
-
-from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import PolynomialFeatures
-from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingRegressor
-
-
+from sklearn.pipeline import Pipeline
+from sklearn.model_selection import learning_curve
+from sklearn.model_selection import cross_val_score
 
 # Specify the file path or URL
 file_path = 'RoadTrafficAccidentLocations.csv'
@@ -319,14 +312,11 @@ ax.set_ylabel('Day of the Week')
 # plt.savefig("./plots/heatmap.png")
 plt.show()
 
-'''expanding the proj'''
+
 
 '''Correlation Matrix'''
-# Identify and exclude non-numeric columns
-numeric_columns = accidentDf.select_dtypes(include=['number']).columns
+numeric_columns = accidentDf.select_dtypes(include=['number']).columns# Identify and exclude non-numeric columns
 correlation_matrix = accidentDf[numeric_columns].corr()
-
-# Print the correlation matrix
 print("\nCorrelation Matrix:")
 print(correlation_matrix)
 
@@ -336,7 +326,6 @@ sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, ce
 plt.title('Correlation Heatmap of Numerical Variables')
 plt.xticks(rotation=45, ha='right')
 plt.show()
-
 
 # check if time of the day has an effect on the severity of the accident
 plt.figure(figsize=(10, 6))
@@ -365,7 +354,8 @@ plt.xticks(rotation=45, ha='right')
 plt.show()
 
 
-#Accident locations visualization
+#Accident locations visualization 
+# i kam komentu (edhe Scatter edhe Hexbin) meqe nen to jane verzionet me te mira me harte
 '''# Scatter plot to see raw accident locations
 plt.figure(figsize=(10, 8))
 plt.scatter(
@@ -478,218 +468,199 @@ plt.show()'''
 
 
 '''ML: Accident Severity Prediction using Random Forest Classifier'''
-# Prepare features and target
-X = accidentDf[['AccidentType', 'RoadType', 'AccidentHour', 'AccidentWeekDay']]
-y = accidentDf['AccidentSeverityCategory_en']
 
-# Encode categorical variables
-X = pd.get_dummies(X)
+# Prepare data for regression
+accident_counts = accidentDf.groupby(['AccidentYear', 'AccidentMonth', 'AccidentHour']).size().reset_index(name='accident_count')
 
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-print("\n\nAccident Severity Prediction:")
-# First approach: Using class weights
-print("\nApproach 1: Class Weights")
-class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
-weight_dict = dict(zip(np.unique(y_train), class_weights))
-rf_model_weights = RandomForestClassifier(n_estimators=100, 
-                                        class_weight=weight_dict,
-                                        random_state=42)
-rf_model_weights.fit(X_train, y_train)
-y_pred_weights = rf_model_weights.predict(X_test)
-print(classification_report(y_test, y_pred_weights, zero_division=1))
+# Create time-based features
+accident_counts['month_sin'] = np.sin(2 * np.pi * accident_counts['AccidentMonth']/12)
+accident_counts['month_cos'] = np.cos(2 * np.pi * accident_counts['AccidentMonth']/12)
+accident_counts['hour_sin'] = np.sin(2 * np.pi * accident_counts['AccidentHour']/24)
+accident_counts['hour_cos'] = np.cos(2 * np.pi * accident_counts['AccidentHour']/24)
 
-# Second approach: Using SMOTE
-print("\nApproach 2: SMOTE")
-smote = SMOTE(random_state=42)
-X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
-rf_model_smote = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_model_smote.fit(X_train_smote, y_train_smote)
-y_pred_smote = rf_model_smote.predict(X_test)
-print(classification_report(y_test, y_pred_smote, zero_division=1))
+# Prepare features
+X = accident_counts[['month_sin', 'month_cos', 'hour_sin', 'hour_cos']]
+y = accident_counts['accident_count']
 
-# Third approach: Using SMOTETomek
-#takes too long to run, i commented it out after running it once
-'''print("\nApproach 3: SMOTETomek")
-smt = SMOTETomek(random_state=42)
-X_train_tomek, y_train_tomek = smt.fit_resample(X_train, y_train)
-rf_model_tomek = RandomForestClassifier(n_estimators=100, random_state=42)
-rf_model_tomek.fit(X_train_tomek, y_train_tomek)
-y_pred_tomek = rf_model_tomek.predict(X_test)
-print(classification_report(y_test, y_pred_tomek, zero_division=1))'''
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)# split data for training and testing
 
-# Feature importance analysis
-feature_importance = pd.DataFrame({
-    'feature': X.columns,
-    'importance': rf_model_weights.feature_importances_
-})
-feature_importance = feature_importance.sort_values('importance', ascending=False)
-print("\nTop 5 Most Important Features:")
-print(feature_importance.head(5))
+# Scale the features
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled = scaler.transform(X_test)
 
-# Plot the feature importance for top 5 with percentages
-plt.figure(figsize=(10, 6))
-bars = plt.bar(feature_importance['feature'][:5], feature_importance['importance'][:5])
+# Train multiple regression models
+models = {
+    'Linear Regression': LinearRegression(),
+    'Polynomial Regression': Pipeline([
+        ('poly', PolynomialFeatures(degree=2)),
+        ('linear', LinearRegression())
+    ]),
+    'Gradient Boosting': GradientBoostingRegressor(
+        n_estimators=100,
+        learning_rate=0.1,
+        max_depth=3,
+        random_state=42
+    )
+}
 
-# Add percentage labels on top of each bar
-total = feature_importance['importance'][:5].sum()
-for bar in bars:
-    height = bar.get_height()
-    percentage = (height/total) * 100
-    plt.text(bar.get_x() + bar.get_width()/2, height,
-             f'{percentage:.1f}%',
-             ha='center', va='bottom')
+# Train models and store predictions
+predictions = {}
+results = {}
 
-plt.title('Top 5 Feature Importance')
-plt.xlabel('Feature')
-plt.ylabel('Importance')
-plt.xticks(rotation=45, ha='right')
+print("\nRegression Models Results:")
+print("-" * 50)
+
+for name, model in models.items():
+    #train
+    model.fit(X_train_scaled, y_train)
+    
+    #predict
+    y_pred = model.predict(X_test_scaled)
+    predictions[name] = y_pred
+    
+    # calculate metrics
+    mse = mean_squared_error(y_test, y_pred)
+    rmse = np.sqrt(mse)
+    r2 = r2_score(y_test, y_pred)
+    
+    results[name] = {'rmse': rmse, 'r2': r2}
+    print(f"\n{name} Results:")
+    print(f"Root Mean Square Error: {rmse:.2f}")
+    print(f"R-squared Score: {r2:.4f}")
+
+# scatter plots for each model
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+fig.suptitle('Actual vs Predicted Accidents - Model Comparison', fontsize=14)
+
+for i, (name, y_pred) in enumerate(predictions.items()):
+    ax = axes[i]
+    
+    ax.scatter(y_test, y_pred, alpha=0.5)
+    
+    # Perfect prediction line
+    min_val = min(y_test.min(), y_pred.min())
+    max_val = max(y_test.max(), y_pred.max())
+    ax.plot([min_val, max_val], [min_val, max_val], 'r--', lw=2)
+    
+    # Labels and title
+    ax.set_xlabel('Actual Number of Accidents')
+    ax.set_ylabel('Predicted Number of Accidents')
+    ax.set_title(f'{name}\nRMSE: {results[name]["rmse"]:.2f}, R²: {results[name]["r2"]:.4f}')
+    
+    ax.grid(True, alpha=0.3)
+
 plt.tight_layout()
 plt.show()
 
-#go back to preplexity, ther was something clustering related that i wanted to try
+# Residual plots
+fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+fig.suptitle('Residual Plots - Model Comparison', fontsize=14)
 
-# Accident Hotspot Prediction
-'''
-Use clustering algorithms (e.g., DBSCAN) to identify accident hotspots.
-Features: geographical coordinates
-'''
+for i, (name, y_pred) in enumerate(predictions.items()):
+    ax = axes[i]
+    
+    residuals = y_test - y_pred # Calculate residuals
+    
+    # Scatter plot of predictions vs residuals
+    ax.scatter(y_pred, residuals, alpha=0.5)
+    ax.axhline(y=0, color='r', linestyle='--')
+    
+    # Labels and title
+    ax.set_xlabel('Predicted Number of Accidents')
+    ax.set_ylabel('Residuals')
+    ax.set_title(f'{name} - Residual Plot')
+    
+    ax.grid(True, alpha=0.3)
 
-from sklearn.cluster import DBSCAN
-from sklearn.preprocessing import StandardScaler
-
-# Prepare the data
-coords = accidentDf[['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N']]
-coords_scaled = StandardScaler().fit_transform(coords)
-
-# Perform DBSCAN clustering
-dbscan = DBSCAN(eps=0.1, min_samples=5)
-accidentDf['Cluster'] = dbscan.fit_predict(coords_scaled)
-
-# Visualize the clusters
-plt.figure(figsize=(12, 10))
-plt.scatter(coords['AccidentLocation_CHLV95_E'], coords['AccidentLocation_CHLV95_N'], c=accidentDf['Cluster'], cmap='viridis')
-plt.title('Accident Hotspots')
-plt.xlabel('East Coordinate (CHLV95_E)')
-plt.ylabel('North Coordinate (CHLV95_N)')
-plt.colorbar(label='Cluster')
+plt.tight_layout()
 plt.show()
 
+# 3 plots: the test and training learning curve, the training samples vs fit times curve, the fit times vs score curve.
+def plot_learning_curve(estimator, title, X, y, axes=None, ylim=None, cv=5,
+                       n_jobs=None, train_sizes=np.linspace(.1, 1.0, 5)):
 
+    if axes is None:
+        _, axes = plt.subplots(1, 3, figsize=(20, 5))
 
-''' Time Series Analysis: Predicting the Number of Accidents Over Time'''
-# Prepare time series data
-accidents_by_month = accidentDf.groupby([accidentDf['AccidentYear'].dt.year, 
-                                        accidentDf['AccidentMonth']])['AccidentType'].count().reset_index()
-accidents_by_month['YearMonth'] = accidents_by_month['AccidentYear'].astype(str) + '-' + accidents_by_month['AccidentMonth'].astype(str)
-accidents_by_month['TimeIndex'] = range(len(accidents_by_month))
+    axes[0].set_title(title)
+    if ylim is not None:
+        axes[0].set_ylim(*ylim)
+    axes[0].set_xlabel("Training examples")
+    axes[0].set_ylabel("Score")
 
-# Prepare features and target
-X_time = accidents_by_month[['TimeIndex']].values
-y_time = accidents_by_month['AccidentType'].values
-
-# Split the data
-X_train_time, X_test_time, y_train_time, y_test_time = train_test_split(X_time, y_time, test_size=0.2, random_state=42)
-
-# Train the model
-lr_model = LinearRegression()
-lr_model.fit(X_train_time, y_train_time)
-
-# Make predictions
-y_pred_time = lr_model.predict(X_test_time)
-
-# Evaluate the model
-print("\nTime Series Regression Results:")
-print(f"R² Score: {r2_score(y_test_time, y_pred_time):.3f}")
-print(f"RMSE: {np.sqrt(mean_squared_error(y_test_time, y_pred_time)):.3f}")
-
-
-'''Spatial Regression: Predicting the Time of Accidents Based on Location'''
-# Prepare spatial features
-X_spatial = accidentDf[['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N']].values
-y_spatial = accidentDf['AccidentHour'].values  # Predicting time of accidents based on location
-
-# Create polynomial features for non-linear relationships
-poly = PolynomialFeatures(degree=2)
-X_spatial_poly = poly.fit_transform(X_spatial)
-
-# Split the data
-X_train_spatial, X_test_spatial, y_train_spatial, y_test_spatial = train_test_split(
-    X_spatial_poly, y_spatial, test_size=0.2, random_state=42
-)
-
-# Train the model
-spatial_model = LinearRegression()
-spatial_model.fit(X_train_spatial, y_train_spatial)
-
-# Make predictions
-y_pred_spatial = spatial_model.predict(X_test_spatial)
-
-# Evaluate the model
-print("\nSpatial Regression Results:")
-print(f"R² Score: {r2_score(y_test_spatial, y_pred_spatial):.3f}")
-print(f"RMSE: {np.sqrt(mean_squared_error(y_test_spatial, y_pred_spatial)):.3f}")
-
-
-'''Accident Count Prediction using Gradient Boosting Regressor'''
-def prepare_regression_features(df):
-    features = pd.DataFrame()
-    features['Hour'] = df['AccidentHour']
-    features['Month'] = df['AccidentMonth']
-    features['WeekDay'] = pd.Categorical(df['AccidentWeekDay']).codes
-    features['AccidentLocation_CHLV95_E'] = df['AccidentLocation_CHLV95_E']
-    features['AccidentLocation_CHLV95_N'] = df['AccidentLocation_CHLV95_N']
+    train_sizes, train_scores, test_scores, fit_times, _ = \
+        learning_curve(estimator, X, y, cv=cv, n_jobs=n_jobs,
+                      train_sizes=train_sizes,
+                      return_times=True)
     
-    # One-hot encode categorical variables
-    features = pd.concat([
-        features,
-        pd.get_dummies(df['AccidentType'], prefix='Type'),
-        pd.get_dummies(df['RoadType'], prefix='Road')
-    ], axis=1)
-    
-    return features
+    train_scores_mean = np.mean(train_scores, axis=1)
+    train_scores_std = np.std(train_scores, axis=1)
+    test_scores_mean = np.mean(test_scores, axis=1)
+    test_scores_std = np.std(test_scores, axis=1)
+    fit_times_mean = np.mean(fit_times, axis=1)
+    fit_times_std = np.std(fit_times, axis=1)
 
-# Prepare features
-X_reg = prepare_regression_features(accidentDf)
-# Prepare target: number of accidents per location
-y_reg = accidentDf.groupby(['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N']).size().reset_index(name='count')
-# Merge X_reg and y_reg on location coordinates
-merged_data = pd.merge(X_reg, y_reg, on=['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N'], how='left')
+    # learning curve
+    axes[0].grid()
+    axes[0].fill_between(train_sizes, train_scores_mean - train_scores_std,
+                        train_scores_mean + train_scores_std, alpha=0.1,
+                        color="r")
+    axes[0].fill_between(train_sizes, test_scores_mean - test_scores_std,
+                        test_scores_mean + test_scores_std, alpha=0.1,
+                        color="g")
+    axes[0].plot(train_sizes, train_scores_mean, 'o-', color="r",
+                 label="Training score")
+    axes[0].plot(train_sizes, test_scores_mean, 'o-', color="g",
+                 label="Cross-validation score")
+    axes[0].legend(loc="best")
 
-# Separate features and target
-X_reg = merged_data.drop(['count', 'AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N'], axis=1)
-y_reg = merged_data['count'].fillna(0)
+    # n_samples vs fit_times
+    axes[1].grid()
+    axes[1].plot(train_sizes, fit_times_mean, 'o-')
+    axes[1].fill_between(train_sizes, fit_times_mean - fit_times_std,
+                        fit_times_mean + fit_times_std, alpha=0.1)
+    axes[1].set_xlabel("Training examples")
+    axes[1].set_ylabel("fit_times")
+    axes[1].set_title("Scalability analysis")
 
-# Verify shapes match
-print(f"X shape: {X_reg.shape}")
-print(f"y shape: {y_reg.shape}")
+    # fit_times vs score
+    axes[2].grid()
+    axes[2].plot(fit_times_mean, test_scores_mean, 'o-')
+    axes[2].fill_between(fit_times_mean, test_scores_mean - test_scores_std,
+                        test_scores_mean + test_scores_std, alpha=0.1)
+    axes[2].set_xlabel("fit_times")
+    axes[2].set_ylabel("Score")
+    axes[2].set_title("Performance analysis")
 
-# Split the data
-X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(X_reg, y_reg, test_size=0.2, random_state=42)
-
-# Initialize and train the Gradient Boosting Regressor
-gb_regressor = GradientBoostingRegressor(n_estimators=100, random_state=42)
-gb_regressor.fit(X_train_reg, y_train_reg)
-
-# Make predictions
-y_pred_reg = gb_regressor.predict(X_test_reg)
-
-# Evaluate the model
-mse = mean_squared_error(y_test_reg, y_pred_reg)
-rmse = np.sqrt(mse)
-r2 = r2_score(y_test_reg, y_pred_reg)
-
-print("\nAccident Count Prediction Results:")
-print(f"Mean Squared Error: {mse:.4f}")
-print(f"Root Mean Squared Error: {rmse:.4f}")
-print(f"R-squared Score: {r2:.4f}")
+    return plt
 
 
-# Feature importance
-'''feature_importance = pd.DataFrame({
-    'feature': X_reg.columns,
-    'importance': gb_regressor.feature_importances_
-})
-feature_importance = feature_importance.sort_values('importance', ascending=False)
-print("\nTop 5 Most Important Features for Accident Count Prediction:")
-print(feature_importance.head(5))'''
+# Plot learning curves for each model
+fig, axes = plt.subplots(3, 3, figsize=(20, 15))
+fig.suptitle('Learning Curves for Different Models', fontsize=16, y=1.05)
+
+for idx, (name, model) in enumerate(models.items()):
+    plot_learning_curve(
+        model, #same models as before
+        title=f"Learning Curve - {name}",
+        X=X_train_scaled, 
+        y=y_train,
+        axes=axes[idx],
+        ylim=(0, 1.1),
+        cv=5,
+        n_jobs=-1
+    )
+
+plt.tight_layout()
+plt.show()
+
+# Print cross-validation scores for each model
+print("\nCross-validation Scores:")
+print("-" * 50)
+
+for name, model in models.items():
+    scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='r2')
+    print(f"\n{name}:")
+    print(f"Mean R² Score: {scores.mean():.4f} (+/- {scores.std() * 2:.4f})")
+    print(f"Individual fold scores: {scores}")
