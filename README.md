@@ -1,13 +1,13 @@
 # Traffic Accident Analysis in Zurich
 
 ## Overview
-This project explores traffic accidents in Zurich since 2011 using data from the Swiss Open Data Portal. Initially focused on visualizing accident trends, the analysis has expanded to include comprehensive data exploration, statistical analysis, and machine learning techniques.
+This project explores traffic accidents in Zurich since 2011 using data from the Swiss Open Data Portal. Initially focused on visualizing accident trends, the analysis has expanded to include comprehensive data exploration, statistical analysis, and advanced machine learning techniques.
 
 The project aims to:
 1. Summarize and clean the data for effective analysis.
 2. Perform exploratory data analysis (EDA) on accident trends and patterns.
 3. Provide insights into relationships and correlations between key variables.
-4. Lay the groundwork for predictive modeling and advanced analysis.
+4. Implement and evaluate machine learning models for accident prediction.
 
 ## Data Source
 [**Swiss Open Data Portal**](https://opendata.swiss/de/dataset/polizeilich-registrierte-verkehrsunfalle-auf-dem-stadtgebiet-zurich-seit-2011)
@@ -25,13 +25,22 @@ The project aims to:
 3. **Advanced Analysis**:
    - Investigate relationships between variables with graphical presentation.
    - Conduct correlation and regression analysis.
-   - Build predictive models and evaluate their performance.
+   - Perform statistical tests (e.g., Chi-square test for independence).
+4. **Machine Learning**:
+   - Implement regression models for accident prediction.
+   - Evaluate and compare model performance.
+   - Analyze learning curves and model scalability.
 
 ## Dependencies
 - Python
 - Matplotlib
 - Pandas
 - Seaborn
+- Geopandas
+- Pandasql
+- NumPy
+- Scikit-learn
+- SciPy
 
 ## Project Structure
 ### Data Processing
@@ -52,25 +61,35 @@ A variety of visualizations provide insights into traffic accident trends:
    - Boxplots reveal severity distribution for different accident types.
 7. **Heatmaps**: Illustrate correlations between accident types and days of the week.
 8. **Distribution Analysis**: Histograms of accidents by hour.
+9. **Geographical Visualization**: Scatter plots and hexbin plots of accident locations on Zurich map.
 
-### Analysis and Insights
+### Statistical Analysis
 - Comprehensive statistical summaries.
-- Identification of peak accident periods (e.g., 2014-2016 trends).
-- Insights into severity patterns and contributing factors.
+- Correlation analysis using heatmaps.
+- Chi-square test for independence between accident types and severity.
+
+### Machine Learning Models
+- Implementation of multiple regression models:
+  - Linear Regression
+  - Polynomial Regression
+  - Gradient Boosting Regressor
+- Model evaluation using metrics such as RMSE and R-squared.
+- Visualization of model performance:
+  - Actual vs Predicted scatter plots
+  - Residual plots
+  - Learning curves
 
 ## Instructions for Use
 1. Clone this repository.
 2. Ensure the required dependencies are installed:
    ```bash
-   pip install matplotlib pandas seaborn
+   pip install matplotlib pandas seaborn geopandas pandasql numpy scikit-learn scipy
    ```
-3. Execute the Python script to generate visualizations and insights.
+3. Execute the Python script to generate visualizations, insights, and machine learning models.
 
 ## Results
 - Detailed insights into accident patterns and trends in Zurich.
 - Identification of key years, times, and conditions associated with higher accident rates.
-
-## Future Plans
-next i will be adding correlation and regression analysis, possibly clustering or classification models to identify accident hotspots or predict accident typesn as well as evaluate model performance using metrics and visualization techniques.
-
+- Comparative analysis of different machine learning models for accident prediction.
+- Evaluation of model performance and scalability.
 
