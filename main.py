@@ -15,6 +15,12 @@ import pandasql as ps
 import numpy as np
 
 from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import classification_report
+from sklearn.utils.class_weight import compute_class_weight
+from imblearn.over_sampling import SMOTE
+from imblearn.combine import SMOTETomek
+
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn.linear_model import LinearRegression
 from sklearn.preprocessing import StandardScaler
@@ -397,9 +403,126 @@ print(f"p-value: {p_value}")
 print(f"Degrees of freedom: {dof}")
 
 
+'''ML: Accident Severity Prediction using Random Forest Classifier'''
+# Prepare features and target
+X = accidentDf[['AccidentType', 'RoadType', 'AccidentHour', 'AccidentWeekDay']]
+y = accidentDf['AccidentSeverityCategory_en']
+# Encode categorical variables
+X = pd.get_dummies(X)
+# Split the data
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+print("\n\nAccident Severity Prediction:")
+print("-" * 30)
+
+# First approach: Using class weights
+print("\nApproach 1: Class Weights")
+class_weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
+weight_dict = dict(zip(np.unique(y_train), class_weights))
+rf_model_weights = RandomForestClassifier(n_estimators=100, 
+                                        class_weight=weight_dict,
+                                        random_state=42)
+rf_model_weights.fit(X_train, y_train)
+y_pred_weights = rf_model_weights.predict(X_test)
+print(classification_report(y_test, y_pred_weights, zero_division=1))
+
+# Feature importance analysis for Class Weights model
+feature_importance_weights = pd.DataFrame({
+    'feature': X.columns,
+    'importance': rf_model_weights.feature_importances_
+})
+feature_importance_weights = feature_importance_weights.sort_values('importance', ascending=False)
+
+print("\nTop 5 Most Important Features (Class Weights Model):")
+print(feature_importance_weights.head(5))
+
+# Pie chart for Class Weights model
+plt.figure(figsize=(10, 8))
+top_5_features = feature_importance_weights.head(5)
+other_importance = feature_importance_weights.iloc[5:]['importance'].sum()
+sizes = list(top_5_features['importance']) + [other_importance]
+labels = list(top_5_features['feature']) + ['Other']
+
+colors = [plt.colormaps['tab10'](i / len(sizes)) for i in range(len(sizes))]
+colors[-1] = 'lightgrey'  # Set 'Other' to light grey
+
+plt.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90, colors=colors)
+plt.suptitle('Feature Importance (Class Weights Model)', fontweight='bold')
+plt.title('Top 5 + other Features')
+plt.axis('equal')
+plt.show()
 
 
-#Accident locations visualization 
+# Second approach: Using SMOTE
+print("\nApproach 2: SMOTE")
+smote = SMOTE(random_state=42)
+X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+rf_model_smote = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model_smote.fit(X_train_smote, y_train_smote)
+y_pred_smote = rf_model_smote.predict(X_test)
+print(classification_report(y_test, y_pred_smote, zero_division=1))
+
+# Feature importance analysis for SMOTE model
+feature_importance_smote = pd.DataFrame({
+    'feature': X.columns,
+    'importance': rf_model_smote.feature_importances_
+})
+feature_importance_smote = feature_importance_smote.sort_values('importance', ascending=False)
+
+print("\nTop 5 Most Important Features (SMOTE Model):")
+print(feature_importance_smote.head(5))
+
+# Pie chart for SMOTE model
+plt.figure(figsize=(10, 8))
+top_5_features_smote = feature_importance_smote.head(5)
+other_importance_smote = feature_importance_smote.iloc[5:]['importance'].sum()
+sizes_smote = list(top_5_features_smote['importance']) + [other_importance_smote]
+labels_smote = list(top_5_features_smote['feature']) + ['Other']
+
+colors_smote = [plt.colormaps['tab10'](i / len(sizes_smote)) for i in range(len(sizes_smote))]
+colors_smote[-1] = 'lightgrey'  # Set 'Other' to light grey
+
+plt.pie(sizes_smote, labels=labels_smote, autopct='%1.1f%%', startangle=90, colors=colors_smote)
+plt.suptitle('Feature Importance (SMOTE Model)', fontweight='bold')
+plt.title('Top 5 + other Features')
+plt.axis('equal')
+plt.show()
+
+
+# Third approach: Using SMOTETomek- takes too long to run
+'''print("\nApproach 3: SMOTETomek")
+smt = SMOTETomek(random_state=42)
+X_train_tomek, y_train_tomek = smt.fit_resample(X_train, y_train)
+rf_model_tomek = RandomForestClassifier(n_estimators=100, random_state=42)
+rf_model_tomek.fit(X_train_tomek, y_train_tomek)
+y_pred_tomek = rf_model_tomek.predict(X_test)
+print(classification_report(y_test, y_pred_tomek, zero_division=1))
+# Feature importance analysis
+feature_importance = pd.DataFrame({
+    'feature': X.columns,
+    'importance': rf_model_weights.feature_importances_
+})
+feature_importance = feature_importance.sort_values('importance', ascending=False)
+print("\nTop 5 Most Important Features:")
+print(feature_importance.head(5))
+# Plot the feature importance for top 5 with percentages
+plt.figure(figsize=(10, 6))
+bars = plt.bar(feature_importance['feature'][:5], feature_importance['importance'][:5])
+# Add percentage labels on top of each bar
+total = feature_importance['importance'][:5].sum()
+for bar in bars:
+    height = bar.get_height()
+    percentage = (height/total) * 100
+    plt.text(bar.get_x() + bar.get_width()/2, height,
+             f'{percentage:.1f}%',
+             ha='center', va='bottom')
+plt.title('Top 5 Feature Importance')
+plt.xlabel('Feature')
+plt.ylabel('Importance')
+plt.xticks(rotation=45, ha='right')
+plt.tight_layout()
+plt.show()'''
+
+'''Accident locations visualizations '''
 # i kam komentu (edhe Scatter edhe Hexbin) meqe nen to jane verzionet me te mira me harte
 '''# Scatter plot to see raw accident locations
 plt.figure(figsize=(10, 8))
@@ -711,4 +834,4 @@ for name, model in models.items():
     print(f"Individual fold scores: {scores}")
     
     
-    
+
