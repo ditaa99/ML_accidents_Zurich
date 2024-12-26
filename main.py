@@ -24,6 +24,9 @@ from sklearn.pipeline import Pipeline
 from sklearn.model_selection import learning_curve
 from sklearn.model_selection import cross_val_score
 
+from scipy import stats
+from scipy.stats import chi2_contingency
+
 # Specify the file path or URL
 file_path = 'RoadTrafficAccidentLocations.csv'
 
@@ -325,6 +328,7 @@ plt.figure(figsize=(12, 10))
 sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0)
 plt.title('Correlation Heatmap of Numerical Variables')
 plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=30, ha='right')
 plt.show()
 
 # check if time of the day has an effect on the severity of the accident
@@ -333,7 +337,7 @@ sns.scatterplot(data=accidentDf, x='AccidentHour', y='AccidentSeverityCategory_e
 plt.title('Accident Hour vs. Severity Category')
 plt.xlabel('Hour of the Day')
 plt.ylabel('Severity Category')
-plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=45, ha='right')
 plt.show()
 
 # Analyze continuous variables: Distribution of accidents by hour
@@ -351,7 +355,48 @@ plt.title('Accident Severity by Type')
 plt.xlabel('Accident Type')
 plt.ylabel('Severity Category')
 plt.xticks(rotation=45, ha='right')
+plt.yticks(rotation=30, ha='right')
 plt.show()
+
+
+'''Statistical Analysis - Chi-square Test for Independence'''
+print("\nStatistical Analysis:")
+print("-" * 30)
+
+# Create numeric mapping for severity categories
+severity_mapping = {category: index for index, category in 
+                   enumerate(accidentDf['AccidentSeverityCategory_en'].unique())}
+
+# Create new numeric column
+accidentDf['SeverityNumeric'] = accidentDf['AccidentSeverityCategory_en'].map(severity_mapping)
+
+# Update t-test code to use numeric values
+severity_by_type = {accident_type: group['SeverityNumeric'].values 
+                   for accident_type, group in accidentDf.groupby('AccidentType_en', observed=True)}
+
+# Perform t-tests between pairs of accident types
+t_test_results = {}
+for type1 in severity_by_type:
+    for type2 in severity_by_type:
+        if type1 < type2:
+            t_stat, p_value = stats.ttest_ind(severity_by_type[type1], 
+                                            severity_by_type[type2],
+                                            nan_policy='omit')
+            t_test_results[(type1, type2)] = (t_stat, p_value)
+
+
+# Create contingency table
+contingency_table = pd.crosstab(accidentDf['AccidentType_en'], 
+                               accidentDf['AccidentSeverityCategory_en'])
+
+# Perform chi-square test
+chi2, p_value, dof, expected = chi2_contingency(contingency_table)
+
+print(f"\nChi-square statistic: {chi2}")
+print(f"p-value: {p_value}")
+print(f"Degrees of freedom: {dof}")
+
+
 
 
 #Accident locations visualization 
@@ -664,3 +709,6 @@ for name, model in models.items():
     print(f"\n{name}:")
     print(f"Mean R² Score: {scores.mean():.4f} (+/- {scores.std() * 2:.4f})")
     print(f"Individual fold scores: {scores}")
+    
+    
+    
