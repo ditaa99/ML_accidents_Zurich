@@ -22,6 +22,14 @@ from sklearn.utils.class_weight import compute_class_weight
 from imblearn.over_sampling import SMOTE
 from imblearn.combine import SMOTETomek
 
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import GradientBoostingRegressor
+
+
 
 # Specify the file path or URL
 file_path = 'RoadTrafficAccidentLocations.csv'
@@ -326,6 +334,7 @@ print(correlation_matrix)
 plt.figure(figsize=(12, 10))
 sns.heatmap(correlation_matrix, annot=True, cmap='coolwarm', vmin=-1, vmax=1, center=0)
 plt.title('Correlation Heatmap of Numerical Variables')
+plt.xticks(rotation=45, ha='right')
 plt.show()
 
 
@@ -397,7 +406,6 @@ plt.xlabel("East Coordinate (CHLV95_E)")
 plt.ylabel("North Coordinate (CHLV95_N)")
 ax.grid(alpha=0.3)
 plt.legend()
-
 plt.show()
 
 '''# Hexbin plot for accident density
@@ -501,13 +509,14 @@ y_pred_smote = rf_model_smote.predict(X_test)
 print(classification_report(y_test, y_pred_smote, zero_division=1))
 
 # Third approach: Using SMOTETomek
-print("\nApproach 3: SMOTETomek")
+#takes too long to run, i commented it out after running it once
+'''print("\nApproach 3: SMOTETomek")
 smt = SMOTETomek(random_state=42)
 X_train_tomek, y_train_tomek = smt.fit_resample(X_train, y_train)
 rf_model_tomek = RandomForestClassifier(n_estimators=100, random_state=42)
 rf_model_tomek.fit(X_train_tomek, y_train_tomek)
 y_pred_tomek = rf_model_tomek.predict(X_test)
-print(classification_report(y_test, y_pred_tomek, zero_division=1))
+print(classification_report(y_test, y_pred_tomek, zero_division=1))'''
 
 # Feature importance analysis
 feature_importance = pd.DataFrame({
@@ -538,3 +547,149 @@ plt.xticks(rotation=45, ha='right')
 plt.tight_layout()
 plt.show()
 
+#go back to preplexity, ther was something clustering related that i wanted to try
+
+# Accident Hotspot Prediction
+'''
+Use clustering algorithms (e.g., DBSCAN) to identify accident hotspots.
+Features: geographical coordinates
+'''
+
+from sklearn.cluster import DBSCAN
+from sklearn.preprocessing import StandardScaler
+
+# Prepare the data
+coords = accidentDf[['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N']]
+coords_scaled = StandardScaler().fit_transform(coords)
+
+# Perform DBSCAN clustering
+dbscan = DBSCAN(eps=0.1, min_samples=5)
+accidentDf['Cluster'] = dbscan.fit_predict(coords_scaled)
+
+# Visualize the clusters
+plt.figure(figsize=(12, 10))
+plt.scatter(coords['AccidentLocation_CHLV95_E'], coords['AccidentLocation_CHLV95_N'], c=accidentDf['Cluster'], cmap='viridis')
+plt.title('Accident Hotspots')
+plt.xlabel('East Coordinate (CHLV95_E)')
+plt.ylabel('North Coordinate (CHLV95_N)')
+plt.colorbar(label='Cluster')
+plt.show()
+
+
+
+''' Time Series Analysis: Predicting the Number of Accidents Over Time'''
+# Prepare time series data
+accidents_by_month = accidentDf.groupby([accidentDf['AccidentYear'].dt.year, 
+                                        accidentDf['AccidentMonth']])['AccidentType'].count().reset_index()
+accidents_by_month['YearMonth'] = accidents_by_month['AccidentYear'].astype(str) + '-' + accidents_by_month['AccidentMonth'].astype(str)
+accidents_by_month['TimeIndex'] = range(len(accidents_by_month))
+
+# Prepare features and target
+X_time = accidents_by_month[['TimeIndex']].values
+y_time = accidents_by_month['AccidentType'].values
+
+# Split the data
+X_train_time, X_test_time, y_train_time, y_test_time = train_test_split(X_time, y_time, test_size=0.2, random_state=42)
+
+# Train the model
+lr_model = LinearRegression()
+lr_model.fit(X_train_time, y_train_time)
+
+# Make predictions
+y_pred_time = lr_model.predict(X_test_time)
+
+# Evaluate the model
+print("\nTime Series Regression Results:")
+print(f"R² Score: {r2_score(y_test_time, y_pred_time):.3f}")
+print(f"RMSE: {np.sqrt(mean_squared_error(y_test_time, y_pred_time)):.3f}")
+
+
+'''Spatial Regression: Predicting the Time of Accidents Based on Location'''
+# Prepare spatial features
+X_spatial = accidentDf[['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N']].values
+y_spatial = accidentDf['AccidentHour'].values  # Predicting time of accidents based on location
+
+# Create polynomial features for non-linear relationships
+poly = PolynomialFeatures(degree=2)
+X_spatial_poly = poly.fit_transform(X_spatial)
+
+# Split the data
+X_train_spatial, X_test_spatial, y_train_spatial, y_test_spatial = train_test_split(
+    X_spatial_poly, y_spatial, test_size=0.2, random_state=42
+)
+
+# Train the model
+spatial_model = LinearRegression()
+spatial_model.fit(X_train_spatial, y_train_spatial)
+
+# Make predictions
+y_pred_spatial = spatial_model.predict(X_test_spatial)
+
+# Evaluate the model
+print("\nSpatial Regression Results:")
+print(f"R² Score: {r2_score(y_test_spatial, y_pred_spatial):.3f}")
+print(f"RMSE: {np.sqrt(mean_squared_error(y_test_spatial, y_pred_spatial)):.3f}")
+
+
+'''Accident Count Prediction using Gradient Boosting Regressor'''
+def prepare_regression_features(df):
+    features = pd.DataFrame()
+    features['Hour'] = df['AccidentHour']
+    features['Month'] = df['AccidentMonth']
+    features['WeekDay'] = pd.Categorical(df['AccidentWeekDay']).codes
+    features['AccidentLocation_CHLV95_E'] = df['AccidentLocation_CHLV95_E']
+    features['AccidentLocation_CHLV95_N'] = df['AccidentLocation_CHLV95_N']
+    
+    # One-hot encode categorical variables
+    features = pd.concat([
+        features,
+        pd.get_dummies(df['AccidentType'], prefix='Type'),
+        pd.get_dummies(df['RoadType'], prefix='Road')
+    ], axis=1)
+    
+    return features
+
+# Prepare features
+X_reg = prepare_regression_features(accidentDf)
+# Prepare target: number of accidents per location
+y_reg = accidentDf.groupby(['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N']).size().reset_index(name='count')
+# Merge X_reg and y_reg on location coordinates
+merged_data = pd.merge(X_reg, y_reg, on=['AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N'], how='left')
+
+# Separate features and target
+X_reg = merged_data.drop(['count', 'AccidentLocation_CHLV95_E', 'AccidentLocation_CHLV95_N'], axis=1)
+y_reg = merged_data['count'].fillna(0)
+
+# Verify shapes match
+print(f"X shape: {X_reg.shape}")
+print(f"y shape: {y_reg.shape}")
+
+# Split the data
+X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(X_reg, y_reg, test_size=0.2, random_state=42)
+
+# Initialize and train the Gradient Boosting Regressor
+gb_regressor = GradientBoostingRegressor(n_estimators=100, random_state=42)
+gb_regressor.fit(X_train_reg, y_train_reg)
+
+# Make predictions
+y_pred_reg = gb_regressor.predict(X_test_reg)
+
+# Evaluate the model
+mse = mean_squared_error(y_test_reg, y_pred_reg)
+rmse = np.sqrt(mse)
+r2 = r2_score(y_test_reg, y_pred_reg)
+
+print("\nAccident Count Prediction Results:")
+print(f"Mean Squared Error: {mse:.4f}")
+print(f"Root Mean Squared Error: {rmse:.4f}")
+print(f"R-squared Score: {r2:.4f}")
+
+
+# Feature importance
+'''feature_importance = pd.DataFrame({
+    'feature': X_reg.columns,
+    'importance': gb_regressor.feature_importances_
+})
+feature_importance = feature_importance.sort_values('importance', ascending=False)
+print("\nTop 5 Most Important Features for Accident Count Prediction:")
+print(feature_importance.head(5))'''
