@@ -6,7 +6,6 @@ Traffic Accident Analysis in Zurich
 Expanding a previous data analysis project to include machine learning techniques.
 """
 
-
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -33,7 +32,7 @@ from sklearn.model_selection import cross_val_score
 from scipy import stats
 from scipy.stats import chi2_contingency
 
-# Specify the file path or URL
+# file path
 file_path = 'RoadTrafficAccidentLocations.csv'
 
 # Read the CSV data
@@ -134,12 +133,10 @@ ax.set_ylabel('Frequency')
 plt.show()
 
 '''Plot the frequency of accidents for each day of the week.'''
-
 days_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 accident_day_freq = accidentDf['AccidentWeekDay_en'].value_counts()
 accident_day_freq = accident_day_freq.reindex(days_order)# Reindex the series to order the days of the week from Monday to Sunday
 
-# Print the frequency of accidents for each day of the week
 print("\nFrequency of Accidents for Each Day of the Week:")
 print(accident_day_freq)
 
@@ -161,8 +158,7 @@ accident_hour_day.columns = ['AccidentWeekDay_en', 'AccidentHour', 'Count'] # Re
 
 # Find the peak hour of accidents for each day of the week
 peak_hour_day = accident_hour_day.loc[accident_hour_day.groupby('AccidentWeekDay_en')['Count'].idxmax()]
-
-# Print the peak hour of accidents for each day of the week
+# print the peak hour
 print("\nPeak Hour of Accidents for Each Day of the Week:")
 print(peak_hour_day)
 
@@ -172,18 +168,12 @@ accidentDf['AccidentYear'] = pd.to_datetime(accidentDf['AccidentYear'], format='
 
 # Group the data by 'AccidentYear' and count the number of accidents in each year
 accidents_per_year = accidentDf.groupby(accidentDf['AccidentYear'].dt.year).size()
-
-
 fig, ax = plt.subplots(figsize=(10, 6))
-
 # line plot
 ax.plot(accidents_per_year.index, accidents_per_year.values, marker='o', linestyle='-', color='b',
         label='Total Accidents')
-
-# Highlight the peak year with a red star marker
-peak_year = accidents_per_year.idxmax()
+peak_year = accidents_per_year.idxmax() # Highlight the peak year with a red star marker
 ax.plot(peak_year, accidents_per_year.max(), marker='*', markersize=10, color='r', label=f'Peak Year: {peak_year}')
-
 
 ax.set_title('Number of Accidents Over Time')
 ax.set_xlabel('Year')
@@ -269,7 +259,6 @@ accident_types_by_severity = accidentDf.pivot_table(
 
 fig, ax = plt.subplots(figsize=(12, 8))
 
-
 accident_types_by_severity.plot(kind='bar', stacked=True, ax=ax) # stacked bar chart
 fig.autofmt_xdate() 
 
@@ -280,6 +269,7 @@ plt.legend(title='Severity', loc='upper right', bbox_to_anchor=(1.12, 1.1))
 # plt.savefig("./plots/types_by_severity.png")
 plt.show()
 
+
 '''severity of accidents on each day of the week'''
 # Create a cross-tabulation of 'AccidentSeverityCategory' and 'AccidentWeekDay_en'
 crosstab = pd.crosstab(accidentDf['AccidentWeekDay_en'], accidentDf['AccidentSeverityCategory_en'])
@@ -288,7 +278,6 @@ crosstab = crosstab.reindex(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 fig, ax = plt.subplots(figsize=(10, 6))
 crosstab.plot(kind='bar', stacked=True, ax=ax)
 fig.autofmt_xdate()
-
 
 ax.set_title('Severity of Accidents on Each Day of the Week')
 ax.set_xlabel('Day of the Week')
@@ -390,7 +379,6 @@ for type1 in severity_by_type:
                                             nan_policy='omit')
             t_test_results[(type1, type2)] = (t_stat, p_value)
 
-
 # Create contingency table
 contingency_table = pd.crosstab(accidentDf['AccidentType_en'], 
                                accidentDf['AccidentSeverityCategory_en'])
@@ -489,6 +477,7 @@ plt.show()
 
 
 # Third approach: Using SMOTETomek- takes too long to run
+# e kam komentu mbasi qe ka run ni here, eshte i perfshire ne raport
 '''print("\nApproach 3: SMOTETomek")
 smt = SMOTETomek(random_state=42)
 X_train_tomek, y_train_tomek = smt.fit_resample(X_train, y_train)
@@ -613,7 +602,6 @@ cb.set_label("Number of Accidents")
 plt.show()
 
 
-
 #takes too long to run
 '''# KDE (Kernel Density Estimate) plot for accident density
 plt.figure(figsize=(10, 8))
@@ -677,7 +665,7 @@ predictions = {}
 results = {}
 
 print("\nRegression Models Results:")
-print("-" * 50)
+print("-" * 30)
 
 for name, model in models.items():
     #train
@@ -804,7 +792,7 @@ def plot_learning_curve(estimator, title, X, y, axes=None, ylim=None, cv=5,
     return plt
 
 
-# Plot learning curves for each model
+# learning curves for each model
 fig, axes = plt.subplots(3, 3, figsize=(20, 15))
 fig.suptitle('Learning Curves for Different Models', fontsize=16, y=1.05)
 
@@ -825,7 +813,7 @@ plt.show()
 
 # Print cross-validation scores for each model
 print("\nCross-validation Scores:")
-print("-" * 50)
+print("-" * 30)
 
 for name, model in models.items():
     scores = cross_val_score(model, X_train_scaled, y_train, cv=5, scoring='r2')
@@ -833,5 +821,3 @@ for name, model in models.items():
     print(f"Mean R² Score: {scores.mean():.4f} (+/- {scores.std() * 2:.4f})")
     print(f"Individual fold scores: {scores}")
     
-    
-

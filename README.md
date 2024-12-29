@@ -53,10 +53,9 @@ The project aims to:
 A variety of visualizations provide insights into traffic accident trends:
 1. **Bar Plot of Accident Types**: Highlights the frequency of different accident types.
 2. **Accidents by Day of the Week**: Displays accident frequency for each weekday.
-3. **Peak Hours of Accidents**: Identifies the peak times for accidents on different days.
-4. **Accidents Over Time**: Tracks trends in accidents across years, highlighting peak years.
-5. **Accident Types Over Time**: Examines the evolution of accident types over years.
-6. **Severity Analysis**:
+3. **Accidents Over Time**: Tracks trends in accidents across years, highlighting peak years.
+4. **Accident Types Over Time**: Examines the evolution of accident types over years.
+5. **Severity Analysis**:
    - Stacked bar charts show accident severity by type and weekday.
    - Boxplots reveal severity distribution for different accident types.
 7. **Heatmaps**: Illustrate correlations between accident types and days of the week.
@@ -93,3 +92,6 @@ A variety of visualizations provide insights into traffic accident trends:
 - Comparative analysis of different machine learning models for accident prediction.
 - Evaluation of model performance and scalability.
 
+## License
+
+This project is licensed under the MIT License.
